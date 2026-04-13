@@ -1,0 +1,190 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── DEPARTMENTS & TASK CATEGORIES (Delegation Matrix) ───
+
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  color       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  taskCategories TaskCategory[]
+  teamMembers    TeamMember[]
+  tasks          Task[]
+}
+
+model TaskCategory {
+  id           String     @id @default(cuid())
+  name         String
+  description  String?
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  skillRatings SkillRating[]
+  tasks        Task[]
+
+  @@unique([departmentId, name])
+}
+
+// ─── TEAM MEMBERS ───
+
+model TeamMember {
+  id            String       @id @default(cuid())
+  firstName     String
+  lastName      String
+  email         String       @unique
+  title         String
+  role          String       @default("individual_contributor")
+  departmentId  String
+  department    Department   @relation(fields: [departmentId], references: [id])
+  managerId     String?
+  manager       TeamMember?  @relation("ManagerReports", fields: [managerId], references: [id])
+  directReports TeamMember[] @relation("ManagerReports")
+  phone         String?
+  startDate     DateTime?
+  strengths     String?
+  weaknesses    String?
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  skillRatings   SkillRating[]
+  assignedTasks  Task[]          @relation("TaskAssignee")
+  createdTasks   Task[]          @relation("TaskCreator")
+  checkIns       CheckIn[]
+  projectMembers ProjectMember[]
+}
+
+model SkillRating {
+  id             String       @id @default(cuid())
+  teamMemberId   String
+  teamMember     TeamMember   @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  taskCategoryId String
+  taskCategory   TaskCategory @relation(fields: [taskCategoryId], references: [id], onDelete: Cascade)
+  rating         Int
+  notes          String?
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([teamMemberId, taskCategoryId])
+}
+
+// ─── TASKS ───
+
+model Task {
+  id             String        @id @default(cuid())
+  title          String
+  description    String?
+  status         String        @default("todo")
+  priority       String        @default("medium")
+  departmentId   String
+  department     Department    @relation(fields: [departmentId], references: [id])
+  taskCategoryId String?
+  taskCategory   TaskCategory? @relation(fields: [taskCategoryId], references: [id])
+  assigneeId     String?
+  assignee       TeamMember?   @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdById    String?
+  createdBy      TeamMember?   @relation("TaskCreator", fields: [createdById], references: [id])
+  projectId      String?
+  project        Project?      @relation(fields: [projectId], references: [id])
+  dueDate        DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+// ─── PROJECTS ───
+
+model Project {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  status      String    @default("planning")
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tasks      Task[]
+  milestones Milestone[]
+  members    ProjectMember[]
+}
+
+model Milestone {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  dueDate     DateTime?
+  completedAt DateTime?
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model ProjectMember {
+  id           String     @id @default(cuid())
+  projectId    String
+  project      Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  teamMemberId String
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  role         String     @default("member")
+
+  @@unique([projectId, teamMemberId])
+}
+
+// ─── CHECK-INS & FOLLOW-UPS ───
+
+model CheckIn {
+  id           String     @id @default(cuid())
+  teamMemberId String
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  checkInDate  DateTime   @default(now())
+  type         String     @default("weekly")
+  wins         String?
+  challenges   String?
+  nextSteps    String?
+  notes        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  actionItems ActionItem[]
+}
+
+model ActionItem {
+  id          String    @id @default(cuid())
+  checkInId   String
+  checkIn     CheckIn   @relation(fields: [checkInId], references: [id], onDelete: Cascade)
+  description String
+  isCompleted Boolean   @default(false)
+  dueDate     DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model FollowUpReminder {
+  id             String    @id @default(cuid())
+  title          String
+  description    String?
+  teamMemberId   String?
+  dueDate        DateTime
+  isRecurring    Boolean   @default(false)
+  recurrenceRule String?
+  isCompleted    Boolean   @default(false)
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
